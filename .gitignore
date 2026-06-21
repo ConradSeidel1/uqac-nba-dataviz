@@ -184,3 +184,6 @@ pyrightconfig.json
 # Fichiers personnels
 Prés/*
 Plan.md
+
+# Données extraites / cache local (nba_api, scraping HoopsHype)
+data/*
