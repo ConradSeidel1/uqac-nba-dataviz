@@ -22,8 +22,9 @@ chiffrée, sourcée et accompagnée d'une visualisation — sans écrire de code
 ## Approche technique
 
 Agent ReAct (LangChain / LangGraph) connecté à deux serveurs MCP — un par source de données —
-piloté par un LLM **local** (Ollama), avec une interface chat Streamlit. Aucune dépendance à
-Claude Desktop : les serveurs MCP sont lancés en sous-processus stdio par l'application.
+piloté par un LLM **local** (Ollama), avec une interface Streamlit qui combine un **tableau de
+bord de visualisations** (Plotly) et un **chat**. Aucune dépendance à Claude Desktop : les
+serveurs MCP sont lancés en sous-processus stdio par l'application.
 
 ## Avancement
 
@@ -37,6 +38,8 @@ Claude Desktop : les serveurs MCP sont lancés en sous-processus stdio par l'app
 - **Serveurs MCP** `nba-stats` et `nba-salaries` (`mcp_servers/`) lisant `data/clean/`.
 - **Agent ReAct + chat Streamlit** (`app.py`) : LLM local (Ollama) consommant les deux serveurs
   MCP via `langchain-mcp-adapters`.
+- **Tableau de bord** (`dashboard.py`) : 4 visualisations Plotly affichées au-dessus du chat,
+  chacune répondant à une question métier (voir ci-dessous).
 
 ## Reproduire le pipeline
 
@@ -69,6 +72,27 @@ L'application :
   de l'app. Pour libérer la VRAM ensuite : `ollama stop qwen3:8b`. Sans ce drapeau, Ollama
   décharge le modèle après 5 min d'inactivité (défaut).
 - **Étapes de raisonnement** : une case dans la barre latérale affiche en direct, sous
-  chaque réponse, les appels d'outils MCP de l'agent (Thought → Action → Observation).
+  chaque réponse, les appels d'outils MCP de l'agent (Thought → Action → Observation),
+  rendus sous forme de tableaux lisibles.
 - Le **modèle est configurable** dans la barre latérale (champ « Modèle Ollama »), pour
   comparer p. ex. `qwen3:8b` et `gemma4:e2b` sans relancer.
+
+## Tableau de bord & questions métier (`dashboard.py`)
+
+Quatre visualisations s'affichent **au-dessus du chat**, chacune avec ses propres filtres
+(saison et/ou métrique) et reliée à une question métier :
+
+| Visualisation | Filtres | Question métier |
+| --- | --- | --- |
+| Scatter **salaire × performance** | saison, métrique | Q1 / Q5 — joueurs les plus rentables, détection des *bargains* |
+| **Masse salariale × victoires** par équipe (avec tendance) | saison | Q2 — le budget achète-t-il des victoires ? |
+| Performance selon l'**ancienneté dans l'équipe** | saison, métrique | Q4 — effet « durée de contrat » |
+| **Rentabilité (perf/M$) selon l'âge** | métrique | Q6 — à quel âge un joueur offre le meilleur rapport |
+
+Notes :
+
+- La « durée de contrat » (Q4) est approximée par le nombre d'**années consécutives** d'un
+  joueur dans la même équipe (colonne `team_tenure`, calculée dans `build_clean_datasets.py`).
+- Le **bilan victoires** (Q2) et l'**âge** (Q6) sont embarqués dans `bridge.parquet`.
+- Q3 (postes surpayés/sous-payés) est **hors périmètre** : le poste n'est pas fourni par les
+  endpoints `nba_api` utilisés.

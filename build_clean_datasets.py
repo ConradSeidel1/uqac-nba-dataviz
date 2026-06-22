@@ -61,11 +61,12 @@ SALARIES_OUT = OUT_DIR / "salaries_clean.parquet"
 BRIDGE_OUT = OUT_DIR / "bridge.parquet"
 DROPPED_LOG = OUT_DIR / "dropped_unmatched.csv"
 
-# Colonnes de stats conservées (box score de base + identité).
+# Colonnes de stats conservées (box score de base + identité + bilan équipe).
 STATS_KEEP = [
     "SEASON", "PLAYER_ID", "PLAYER_NAME", "TEAM_ABBREVIATION", "AGE",
     "GP", "MIN", "PTS", "REB", "AST", "STL", "BLK", "TOV",
     "FG_PCT", "FG3_PCT", "FT_PCT", "PLUS_MINUS",
+    "W", "L", "W_PCT",  # bilan de l'équipe du joueur (pour Q2 : masse salariale vs résultats)
 ]
 
 logging.basicConfig(
@@ -191,7 +192,8 @@ def build_bridge(stats: pd.DataFrame, salaries: pd.DataFrame,
     # On embarque aussi les stats de base + matchs : le pont sert au calcul du ratio
     # performance/salaire (get_value_ranking côté serveur MCP).
     ref_cols = ["player_id", "season", "player_name", "name_norm"]
-    for c in ("team_abbreviation", "gp", "pts", "reb", "ast", "stl", "blk"):
+    for c in ("team_abbreviation", "age", "gp", "pts", "reb", "ast", "stl", "blk",
+              "w", "l", "w_pct"):
         if c in st.columns:
             ref_cols.append(c)
     ref = st[ref_cols].copy()
@@ -212,7 +214,40 @@ def build_bridge(stats: pd.DataFrame, salaries: pd.DataFrame,
              "sans salaire retirés de la base",
              len(bridge), len(full), 100 * len(bridge) / len(full), len(dropped))
 
+    bridge = add_team_tenure(bridge)
     return bridge, dropped
+
+
+def add_team_tenure(bridge: pd.DataFrame) -> pd.DataFrame:
+    """Ajoute `team_tenure` : ancienneté du joueur dans son équipe actuelle.
+
+    = nombre d'années CONSÉCUTIVES (cette saison incluse) que le joueur passe dans
+    la même équipe. Un changement d'équipe, ou un trou dans les saisons, réinitialise
+    le compteur à 1. C'est ce qu'un spectateur appelle « depuis combien de temps il
+    est dans l'équipe » (proxy de durée de contrat).
+    """
+    if "team_abbreviation" not in bridge.columns:
+        bridge["team_tenure"] = 1
+        return bridge
+
+    b = bridge.sort_values(["player_id", "season"],
+                           key=lambda s: s.map(start_year_of) if s.name == "season" else s)
+    tenures: list[int] = []
+    prev_pid = prev_team = None
+    prev_year = None
+    run = 0
+    for row in b.itertuples():
+        year = start_year_of(row.season)
+        if (row.player_id == prev_pid and row.team_abbreviation == prev_team
+                and prev_year is not None and year == prev_year + 1):
+            run += 1
+        else:
+            run = 1
+        tenures.append(run)
+        prev_pid, prev_team, prev_year = row.player_id, row.team_abbreviation, year
+    b = b.copy()
+    b["team_tenure"] = tenures
+    return b
 
 
 # --------------------------------------------------------------------------- #
@@ -236,8 +271,7 @@ def main() -> None:
     bridge, dropped = build_bridge(stats, salaries, aliases)
 
     # La base finale ne contient que les joueurs appariés : on restreint stats_clean
-    # aux couples (player_id, season) présents dans le pont, et salaries_clean aux
-    # saisons couvertes.
+    # aux couples (player_id, season) présents dans le pont.
     kept_keys = set(zip(bridge.player_id, bridge.season))
     stats_keep = stats[stats.apply(
         lambda r: (r.player_id, r.season) in kept_keys, axis=1)]
@@ -250,6 +284,7 @@ def main() -> None:
              BRIDGE_OUT.name, len(bridge))
 
     if args.dropped_csv and len(dropped):
+        dropped.to_csv(DROPPED_LOG, index=False, encoding="utf-8")
         log.info("Joueurs-saison écartés listés dans %s (%d lignes)",
                  DROPPED_LOG.name, len(dropped))
 

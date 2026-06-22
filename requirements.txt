@@ -13,3 +13,4 @@ langchain-ollama
 langchain-mcp-adapters
 streamlit
 plotly
+statsmodels
