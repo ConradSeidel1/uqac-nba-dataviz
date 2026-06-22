@@ -14,11 +14,39 @@ chiffrée, sourcée et accompagnée d'une visualisation — sans écrire de code
 ## Données
 
 - **Statistiques de jeu** — extraites de l'API officielle via `nba_api`.
-- **Salaires** — *scrapés depuis [HoopsHype](https://hoopshype.com/salaries/)*.
-- **Périmètre** — saisons **1990-91 → 2025-26** (borné par la couverture HoopsHype), avec une
-  jointure parfaite entre les deux sources sur le référentiel `nba_api`.
+- **Salaires** — dataset Kaggle [*NBA Players and Team Data*](https://www.kaggle.com/datasets/loganlauton/nba-players-and-team-data)
+  (fichier `NBA Salaries (1990-2023)`).
+- **Périmètre** — saisons **1996-97 → 2021-22** (intersection réelle où les deux sources
+  ont des données), avec une jointure entre les deux sur le référentiel `nba_api`.
 
 ## Approche technique
 
-Agent ReAct (LangChain) connecté à deux serveurs MCP — un par source de données — avec un LLM
-local, une interface Streamlit (chat + tableau de bord) et des visualisations Plotly.
+Agent ReAct (LangChain / LangGraph) connecté à deux serveurs MCP — un par source de données —
+piloté par un LLM **local** (Ollama), avec une interface chat Streamlit. Aucune dépendance à
+Claude Desktop : les serveurs MCP sont lancés en sous-processus stdio par l'application.
+
+## Avancement
+
+- **Extraction `nba_api`** (`extract_nba_api.py`) → `data/nba_api/`. Les saisons antérieures à
+  1996-97 ne sont pas renvoyées par l'API ; le périmètre réel démarre donc en 1996-97.
+- **Salaires** : dataset Kaggle `NBA Salaries (1990-2023)` (`data/NBA Salaries(1990-2023).csv`).
+- **Nettoyage + jointure** (`build_clean_datasets.py`) : deux bases propres et une table de pont
+  dans `data/clean/` — `stats_clean.parquet`, `salaries_clean.parquet`, `bridge.parquet`.
+  Jointure par nom normalisé + table d'alias (`data/aliases.csv`) ; les joueurs-saison sans
+  salaire correspondant sont écartés.
+- **Serveurs MCP** `nba-stats` et `nba-salaries` (`mcp_servers/`) lisant `data/clean/`.
+- **Agent ReAct + chat Streamlit** (`app.py`) : LLM local (Ollama) consommant les deux serveurs
+  MCP via `langchain-mcp-adapters`.
+
+## Reproduire le pipeline
+
+```bash
+pip install -r requirements.txt
+ollama pull qwen3:8b             # LLM local conseillé (tient en ~5 Go, bon tool-calling)
+# alternative testée : ollama pull gemma4:e2b
+
+python extract_nba_api.py        # extraction stats (long : ~30 saisons, rate limiting)
+python build_clean_datasets.py   # bases propres + pont
+
+streamlit run app.py             # chat : agent ReAct + Ollama + serveurs MCP
+```

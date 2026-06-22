@@ -1,3 +1,14 @@
-nba_api 
-pandas 
+# Extraction nba_api + traitement des données
+nba_api
+pandas
 pyarrow
+
+# Serveurs MCP (nba-stats, nba-salaries)
+mcp[cli]
+
+# Agent ReAct + LLM local (Ollama) + interface chat
+langchain
+langgraph
+langchain-ollama
+langchain-mcp-adapters
+streamlit
