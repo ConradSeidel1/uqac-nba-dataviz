@@ -131,6 +131,48 @@ def warmup_model() -> None:
         st.session_state.warmed_up = True
 
 
+def _format_tool_result(obs) -> str:
+    """Rend lisible un résultat d'outil MCP dans le panneau « étapes ».
+
+    Le contenu MCP arrive souvent enveloppé : [{'type': 'text', 'text': '<json>'}].
+    On déballe le texte, on parse le JSON, et si c'est notre format compact
+    {columns, rows} on l'affiche en petit tableau Markdown. Sinon, on affiche le
+    JSON de façon compacte (une ligne).
+    """
+    import json
+
+    # 1) Déballer l'enveloppe MCP -> texte brut.
+    raw = obs
+    if isinstance(obs, list) and obs and isinstance(obs[0], dict) and "text" in obs[0]:
+        raw = obs[0]["text"]
+    elif isinstance(obs, dict) and "text" in obs:
+        raw = obs["text"]
+
+    # 2) Tenter de parser le JSON.
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, TypeError):
+        return f"**◀ Résultat** : {str(raw)[:400]}"
+
+    # 3) Format compact {columns, rows} -> tableau Markdown (max ~8 lignes affichées).
+    if isinstance(data, dict) and "columns" in data and "rows" in data:
+        cols = data["columns"]
+        rows = data["rows"][:8]
+        header = "| " + " | ".join(str(c) for c in cols) + " |"
+        sep = "| " + " | ".join("---" for _ in cols) + " |"
+        body = "\n".join("| " + " | ".join(str(v) for v in r) + " |" for r in rows)
+        note = ""
+        if data.get("truncated"):
+            note = (f"\n\n_↳ {data.get('players_returned')} joueurs affichés sur "
+                    f"{data.get('total_players')} (tronqué)._")
+        more = f"\n\n_… {data['n_rows'] - len(rows)} lignes de plus_" \
+            if data.get("n_rows", 0) > len(rows) else ""
+        return f"**◀ Résultat**\n\n{header}\n{sep}\n{body}{more}{note}"
+
+    # 4) Autre dict (erreur, payroll…) -> JSON compact une ligne.
+    return f"**◀ Résultat** : {json.dumps(data, ensure_ascii=False)[:400]}"
+
+
 async def _stream_steps(agent, question: str, steps_box) -> str:
     """Streame les étapes de l'agent (Thought / Action / Observation).
 
@@ -156,8 +198,7 @@ async def _stream_steps(agent, question: str, steps_box) -> str:
                 final_answer = msg.content
         elif "tools" in chunk:
             obs = chunk["tools"]["messages"][0].content
-            preview = str(obs).replace("\n", " ")[:300]
-            lines.append(f"**◀ Résultat** : {preview}")
+            lines.append(_format_tool_result(obs))
         if lines:
             steps_box.markdown("\n\n".join(lines))
 
@@ -244,8 +285,6 @@ def main() -> None:
 
         with st.chat_message("assistant"):
             steps_text = ""
-            # Les étapes sont toujours capturées ; on les affiche pendant le calcul
-            # dans un expander replié par défaut (déroulable si on veut suivre).
             with st.expander("🧠 Étapes de raisonnement", expanded=show_reasoning):
                 steps_box = st.empty()
 
