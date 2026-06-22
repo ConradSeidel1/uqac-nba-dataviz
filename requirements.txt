@@ -6,9 +6,10 @@ pyarrow
 # Serveurs MCP (nba-stats, nba-salaries)
 mcp[cli]
 
-# Agent ReAct + LLM local (Ollama) + interface chat
+# Agent ReAct + LLM local (Ollama) + interface chat + visualisations
 langchain
 langgraph
 langchain-ollama
 langchain-mcp-adapters
 streamlit
+plotly

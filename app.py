@@ -31,6 +31,8 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 
+from dashboard import render_dashboard
+
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
@@ -223,9 +225,13 @@ def ask_agent(question: str, steps_box) -> str:
 # --------------------------------------------------------------------------- #
 
 def main() -> None:
-    st.set_page_config(page_title="Assistant NBA", page_icon="🏀", layout="centered")
+    st.set_page_config(page_title="Assistant NBA", page_icon="🏀", layout="wide")
     st.title("🏀 Assistant NBA — Performance vs. Contrats")
     st.caption("Agent ReAct sur LLM local (Ollama) + serveurs MCP nba-stats & nba-salaries")
+
+    # Tableau de bord (visualisations) affiché au-dessus du chat.
+    render_dashboard()
+    st.subheader("💬 Assistant")
 
     with st.sidebar:
         st.header("Configuration")
