@@ -188,9 +188,12 @@ def build_bridge(stats: pd.DataFrame, salaries: pd.DataFrame,
     sa = salaries[salaries.season.isin(common)].copy()
 
     # Référentiel = joueurs nba_api ; on applique les alias avant la jointure.
+    # On embarque aussi les stats de base + matchs : le pont sert au calcul du ratio
+    # performance/salaire (get_value_ranking côté serveur MCP).
     ref_cols = ["player_id", "season", "player_name", "name_norm"]
-    if "team_abbreviation" in st.columns:
-        ref_cols.append("team_abbreviation")
+    for c in ("team_abbreviation", "gp", "pts", "reb", "ast", "stl", "blk"):
+        if c in st.columns:
+            ref_cols.append(c)
     ref = st[ref_cols].copy()
     ref["name_join"] = ref["name_norm"].map(lambda n: aliases.get(n, n))
 

@@ -50,3 +50,25 @@ python build_clean_datasets.py   # bases propres + pont
 
 streamlit run app.py             # chat : agent ReAct + Ollama + serveurs MCP
 ```
+
+## Lancer l'assistant (`app.py`)
+
+```bash
+streamlit run app.py                  # modèle déchargé après 5 min d'inactivité
+streamlit run app.py -- --keep-alive  # modèle gardé en mémoire (pratique en démo)
+```
+
+Le `--` isolé est requis : Streamlit ne transmet au script que ce qui suit ce séparateur.
+
+L'application :
+
+- **Précharge le modèle** (warmup) au démarrage : on paie le chargement Ollama tout de
+  suite plutôt qu'à la première question. La barre latérale affiche « Modèle prêt ✅ ».
+- **`--keep-alive`** demande à Ollama de garder le modèle en VRAM indéfiniment. Le modèle
+  vit dans le service Ollama (pas dans le process Streamlit) : il **survit à un `Ctrl+C`**
+  de l'app. Pour libérer la VRAM ensuite : `ollama stop qwen3:8b`. Sans ce drapeau, Ollama
+  décharge le modèle après 5 min d'inactivité (défaut).
+- **Étapes de raisonnement** : une case dans la barre latérale affiche en direct, sous
+  chaque réponse, les appels d'outils MCP de l'agent (Thought → Action → Observation).
+- Le **modèle est configurable** dans la barre latérale (champ « Modèle Ollama »), pour
+  comparer p. ex. `qwen3:8b` et `gemma4:e2b` sans relancer.
