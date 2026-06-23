@@ -227,13 +227,15 @@ def ask_agent(question: str, steps_box) -> str:
 def main() -> None:
     st.set_page_config(page_title="Assistant NBA", page_icon="🏀", layout="wide")
     st.title("🏀 Assistant NBA — Performance vs. Contrats")
-    st.caption("Agent ReAct sur LLM local (Ollama) + serveurs MCP nba-stats & nba-salaries")
 
     # Tableau de bord (visualisations) affiché au-dessus du chat.
     render_dashboard()
     st.subheader("💬 Assistant")
 
     with st.sidebar:
+        if st.button("Réinitialiser la conversation"):
+            st.session_state.pop("messages", None)
+            st.rerun()
         st.header("Configuration")
         model_name = st.text_input("Modèle Ollama", value=DEFAULT_MODEL)
         if KEEP_ALIVE == -1:
@@ -247,10 +249,7 @@ def main() -> None:
                     "ou (fallback) :\n\n"
                     "```\nKEEP_ALIVE=1 streamlit run app.py\n```\n"
                     f"_Args reçus : `{list(sys.argv[1:])}`_")
-        show_reasoning = st.checkbox("Afficher les étapes de raisonnement", value=False)
-        if st.button("Réinitialiser la conversation"):
-            st.session_state.pop("messages", None)
-            st.rerun()
+        
 
     # Historique de conversation. Chaque message = (role, content, steps).
     if "messages" not in st.session_state:
@@ -291,7 +290,7 @@ def main() -> None:
 
         with st.chat_message("assistant"):
             steps_text = ""
-            with st.expander("🧠 Étapes de raisonnement", expanded=show_reasoning):
+            with st.expander("🧠 Étapes de raisonnement", expanded=False):
                 steps_box = st.empty()
 
             with st.spinner("L'agent interroge les données…"):
