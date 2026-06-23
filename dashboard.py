@@ -122,7 +122,7 @@ def fig_tenure(df: pd.DataFrame, metric: str):
         g, x="team_tenure", y="perf",
         labels={"team_tenure": "Années dans l'équipe (durée de contrat)",
                 "perf": f"{METRICS[metric]} moyens"},
-        title=f"Performance moyenne selon l'ancienneté dans l'équipe",
+        title=f"{METRICS[metric]} moyens selon l'ancienneté dans l'équipe",
         color="salary_m", color_continuous_scale="Plasma",
         hover_data={"players": True, "salary_m": ":.1f"})
     fig.update_layout(height=440, coloraxis_colorbar_title="Salaire<br>moy. (M$)")

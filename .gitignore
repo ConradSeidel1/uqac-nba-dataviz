@@ -185,5 +185,5 @@ pyrightconfig.json
 Prés/*
 Plan.md
 
-# Données extraites / cache local (nba_api, scraping HoopsHype)
+# Données extraites / cache local (nba_api, dataset Kaggle, bases propres)
 data/*

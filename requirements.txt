@@ -1,16 +1,18 @@
 # Extraction nba_api + traitement des données
 nba_api
 pandas
+numpy
 pyarrow
 
 # Serveurs MCP (nba-stats, nba-salaries)
 mcp[cli]
 
-# Agent ReAct + LLM local (Ollama) + interface chat + visualisations
-langchain
+# Agent ReAct + LLM local (Ollama)
 langgraph
 langchain-ollama
 langchain-mcp-adapters
+
+# Interface + visualisations
 streamlit
 plotly
 statsmodels

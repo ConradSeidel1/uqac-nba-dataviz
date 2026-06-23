@@ -6,7 +6,7 @@ un par source de données, lisant les bases propres de `data/clean/`.
 | Serveur | Fichier | Lit | Outils |
 | --- | --- | --- | --- |
 | `nba-stats` | `nba_stats_server.py` | `stats_clean.parquet` | `get_player_season_stats`, `get_league_leaders`, `search_players`, `list_seasons` |
-| `nba-salaries` | `nba_salaries_server.py` | `salaries_clean.parquet`, `bridge.parquet` | `get_player_salary`, `get_team_payroll`, `query_salaries`, `list_seasons` |
+| `nba-salaries` | `nba_salaries_server.py` | `salaries_clean.parquet`, `bridge.parquet` | `get_player_salary`, `get_team_payroll`, `query_salaries`, `get_value_ranking`, `list_seasons` |
 
 ## Prérequis
 
