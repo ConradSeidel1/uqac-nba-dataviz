@@ -148,6 +148,13 @@ Exemples de questions : *« Quel est le joueur le plus rentable ? »*, *« Les m
 2018-19 ? »*, *« Évolution du salaire de Stephen Curry »*, *« Quelles équipes ont la plus grosse
 masse salariale en 2021-22 ? »*.
 
+**Le chat pilote le tableau de bord.** Après chaque réponse, les filtres du dashboard se mettent
+à jour automatiquement selon ce que l'agent a réellement consulté — déduit de ses **appels
+d'outils** (source fiable), pas du texte. Seuls les filtres pertinents sont modifiés : la
+métrique et la période depuis les arguments d'outil, le joueur ou l'équipe mis en avant depuis le
+résultat. Demander « le joueur le plus rentable en 2021-22 » sélectionne ainsi automatiquement ce
+joueur, la métrique et la saison dans les visualisations.
+
 ---
 
 ## 6. Structure du projet

@@ -71,19 +71,21 @@ def fig_scatter(df: pd.DataFrame, metric: str):
          .groupby(["player_id", "player_name"], as_index=False)
          .agg(salary_adj_m=("salary_adj_m", "mean"), perf=(metric, "mean"),
               gp=("gp", "sum"), team=("team_abbreviation", "last")))
+    # render_mode="svg" : force des traces Scatter classiques (et non Scattergl, qui
+    # ne gère pas le zorder) → la droite de régression peut passer au premier plan.
     fig = px.scatter(
         g, x="salary_adj_m", y="perf", hover_name="player_name",
-        color="team", opacity=0.65,
+        color="team", opacity=0.5, render_mode="svg",
         labels={"salary_adj_m": "Salaire ajusté inflation (M$)", "perf": METRICS[metric]},
         title=f"Salaire × {METRICS[metric]} — au-dessus de la droite = bonne affaire")
-    fig.update_traces(marker=dict(size=6, line=dict(width=0)))
+    fig.update_traces(marker=dict(size=6, line=dict(width=0)), zorder=0)
 
-    # Droite de régression figée (référence absolue).
+    # Droite de régression figée (référence absolue) : ligne PLEINE, au PREMIER PLAN.
     slope, intercept = global_regression(metric)
     xs = np.linspace(g.salary_adj_m.min(), g.salary_adj_m.max(), 50)
     fig.add_trace(go.Scatter(
         x=xs, y=slope * xs + intercept, mode="lines", name="Référence (régression)",
-        line=dict(color="black", dash="dash", width=2)))
+        line=dict(color="#0B1D3A", width=4), opacity=1, zorder=10))
     fig.update_layout(showlegend=False, height=440)
     return fig
 
@@ -149,6 +151,45 @@ def fig_value_age(df: pd.DataFrame, metric: str):
 
 
 # --------------------------------------------------------------------------- #
+# Pilotage des filtres par l'assistant
+# --------------------------------------------------------------------------- #
+
+def _apply_filter_hints(seasons: list, teams: list, players: list) -> None:
+    """Applique aux filtres les suggestions laissées par l'assistant (chat).
+
+    Lit `st.session_state["_filter_hints"]` (posé par app.py après une réponse) et
+    écrit dans les clés de widgets — UNIQUEMENT les filtres pertinents, en validant
+    que la valeur existe. Si au moins un filtre change, relance l'app pour que les
+    widgets adoptent la nouvelle valeur. Les hints sont consommés une seule fois.
+    """
+    hints = st.session_state.pop("_filter_hints", None)
+    if not hints:
+        return
+
+    changed = False
+
+    def _set(key, value):
+        nonlocal changed
+        if value is not None and st.session_state.get(key) != value:
+            st.session_state[key] = value
+            changed = True
+
+    if hints.get("metric") in METRICS:
+        _set("f_metric", hints["metric"])
+    if hints.get("season_from") in seasons:
+        _set("f_from", hints["season_from"])
+    if hints.get("season_to") in seasons:
+        _set("f_to", hints["season_to"])
+    if hints.get("player") in players:
+        _set("f_players", [hints["player"]])
+    if hints.get("team") in teams:
+        _set("f_teams", [hints["team"]])
+
+    if changed:
+        st.rerun()
+
+
+# --------------------------------------------------------------------------- #
 # Rendu
 # --------------------------------------------------------------------------- #
 
@@ -160,20 +201,23 @@ def render_dashboard() -> None:
         return
 
     seasons = sorted(df.season.unique(), key=_start_year)
+    teams = sorted(df.team_abbreviation.dropna().unique())
+    players = sorted(df.player_name.dropna().unique())
+
+    # Applique les suggestions de filtres laissées par l'assistant (avant les widgets).
+    _apply_filter_hints(seasons, teams, players)
 
     # --- Filtres communs (sidebar) : période + métrique + sélection joueurs/équipes ---
     with st.sidebar:
         st.header("Filtres du tableau de bord")
-        s_from = st.selectbox("Saison de début", seasons, index=0)
-        s_to = st.selectbox("Saison de fin", seasons, index=len(seasons) - 1)
+        s_from = st.selectbox("Saison de début", seasons, index=0, key="f_from")
+        s_to = st.selectbox("Saison de fin", seasons, index=len(seasons) - 1, key="f_to")
         if _start_year(s_from) > _start_year(s_to):
             s_from, s_to = s_to, s_from  # tolère l'inversion
         metric = st.selectbox("Métrique", list(METRICS),
-                              format_func=lambda m: METRICS[m])
-        teams = sorted(df.team_abbreviation.dropna().unique())
-        sel_teams = st.multiselect("Équipes (vide = toutes)", teams)
-        players = sorted(df.player_name.dropna().unique())
-        sel_players = st.multiselect("Joueurs (vide = tous)", players)
+                              format_func=lambda m: METRICS[m], key="f_metric")
+        sel_teams = st.multiselect("Équipes (vide = toutes)", teams, key="f_teams")
+        sel_players = st.multiselect("Joueurs (vide = tous)", players, key="f_players")
 
     # Application des filtres communs.
     d = in_range(df, s_from, s_to)
@@ -191,6 +235,7 @@ def render_dashboard() -> None:
         st.plotly_chart(fig_scatter(d, metric), use_container_width=True)
     with c2:
         st.plotly_chart(fig_payroll_wins(d), use_container_width=True)
+
 
     c3, c4 = st.columns(2)
     with c3:

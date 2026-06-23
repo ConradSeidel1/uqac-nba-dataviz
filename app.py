@@ -175,6 +175,58 @@ def _format_tool_result(obs) -> str:
     return f"**◀ Résultat** : {json.dumps(data, ensure_ascii=False)[:400]}"
 
 
+def _unwrap_tool_payload(obs):
+    """Déballe le contenu MCP -> objet Python (dict {columns, rows} ou autre)."""
+    import json
+    raw = obs
+    if isinstance(obs, list) and obs and isinstance(obs[0], dict) and "text" in obs[0]:
+        raw = obs[0]["text"]
+    elif isinstance(obs, dict) and "text" in obs:
+        raw = obs["text"]
+    try:
+        return json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _collect_filter_hints(tool_name: str, args: dict, result) -> dict:
+    """Déduit des suggestions de filtres depuis un appel d'outil et son résultat.
+
+    Source fiable : les ARGUMENTS de l'outil (metric, season_from/to) et la PREMIÈRE
+    ligne du résultat (le joueur ou l'équipe mis en avant). On ne renvoie que les
+    indices réellement présents — l'appelant ne modifiera que ces filtres-là.
+    """
+    hints: dict = {}
+    args = args or {}
+
+    # Métrique et période : directement dans les arguments de l'outil.
+    # (get_value_ranking utilise `metric`, get_league_leaders utilise `stat`.)
+    if args.get("metric"):
+        hints["metric"] = args["metric"]
+    elif args.get("stat"):
+        hints["metric"] = args["stat"]
+    if args.get("season_from"):
+        hints["season_from"] = args["season_from"]
+    if args.get("season_to"):
+        hints["season_to"] = args["season_to"]
+    # Une saison unique passée à un outil mono-saison.
+    if args.get("season"):
+        hints["season_from"] = hints["season_to"] = args["season"]
+
+    # Joueur / équipe : 1re ligne du tableau {columns, rows}.
+    data = _unwrap_tool_payload(result)
+    if isinstance(data, dict) and data.get("columns") and data.get("rows"):
+        cols = data["columns"]
+        first = data["rows"][0]
+        row = dict(zip(cols, first))
+        if "player_name" in row:
+            hints["player"] = row["player_name"]
+    # Équipe : argument explicite (get_team_payroll) ou colonne d'équipe.
+    if args.get("team"):
+        hints["team"] = args["team"]
+    return hints
+
+
 async def _stream_steps(agent, question: str, steps_box) -> str:
     """Streame les étapes de l'agent (Thought / Action / Observation).
 
@@ -185,6 +237,8 @@ async def _stream_steps(agent, question: str, steps_box) -> str:
     lines: list[str] = []
     final_answer = ""
     used_a_tool = False
+    last_call: tuple[str, dict] | None = None      # (nom outil, args) du dernier appel
+    hints: dict = {}                               # suggestions de filtres accumulées
 
     async for chunk in agent.astream({"messages": [("user", question)]}):
         if "agent" in chunk:
@@ -195,14 +249,21 @@ async def _stream_steps(agent, question: str, steps_box) -> str:
                     lines.append(f"**💭 Réflexion** : {thought}")
                 for tc in msg.tool_calls:
                     used_a_tool = True
+                    last_call = (tc["name"], tc.get("args", {}))
                     lines.append(f"**▶ Outil** `{tc['name']}` → `{tc['args']}`")
             elif msg.content:
                 final_answer = msg.content
         elif "tools" in chunk:
             obs = chunk["tools"]["messages"][0].content
             lines.append(_format_tool_result(obs))
+            # Associe ce résultat au dernier appel pour en tirer des filtres.
+            if last_call is not None:
+                hints.update(_collect_filter_hints(last_call[0], last_call[1], obs))
         if lines:
             steps_box.markdown("\n\n".join(lines))
+
+    # Mémorise les suggestions de filtres pour que le dashboard les applique.
+    st.session_state["_filter_hints"] = hints
 
     if not used_a_tool:
         lines.append(
@@ -249,7 +310,6 @@ def main() -> None:
                     "ou (fallback) :\n\n"
                     "```\nKEEP_ALIVE=1 streamlit run app.py\n```\n"
                     f"_Args reçus : `{list(sys.argv[1:])}`_")
-        
 
     # Historique de conversation. Chaque message = (role, content, steps).
     if "messages" not in st.session_state:
@@ -302,6 +362,11 @@ def main() -> None:
             st.markdown(answer)
 
         st.session_state.messages.append(("assistant", answer, steps_text))
+
+        # Si la réponse a produit des suggestions de filtres, on relance pour que le
+        # tableau de bord (rendu en haut de page) les applique.
+        if st.session_state.get("_filter_hints"):
+            st.rerun()
 
 
 if __name__ == "__main__":
